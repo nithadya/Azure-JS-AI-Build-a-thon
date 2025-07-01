@@ -1,3 +1,5 @@
+param webapiName string = 'jsaibackendapi'
+param appServicePlanName string = 'appserviceplan'
 targetScope = 'subscription'
 
 @minLength(1)
@@ -13,7 +15,14 @@ param rg string = ''
 param webappName string = 'webapp'
 
 @description('Location for the Static Web App')
-@allowed(['westus2', 'centralus', 'eastus2', 'westeurope', 'eastasia', 'eastasiastage'])
+@allowed([
+  'westus2'
+  'centralus'
+  'eastus2'
+  'westeurope'
+  'eastasia'
+  'eastasiastage'
+])
 @metadata({
   azd: {
     type: 'location'
@@ -24,17 +33,8 @@ param webappLocation string
 @description('Id of the user or app to assign application roles')
 param principalId string
 
-@minLength(1)
-@description('Name for the webapi App Service')
-param webapiName string = 'Azure-JS-AI-Build-a-thon-api' // use a unique string, avoid common names
-
-@minLength(1)
-@description('Name for the App Service Plan')
-param appServicePlanName string = 'appserviceplan'
-
 // ---------------------------------------------------------------------------
 // Common variables
-var abbrs = loadJsonContent('./abbreviations.json')
 var tags = {
   'azd-env-name': environmentName
 }
@@ -42,24 +42,28 @@ var tags = {
 // ---------------------------------------------------------------------------
 // Resources
 
-// Organize resources in a resource group ✅
+// ✅ Resource Group
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
-  name: !empty(rg) ? rg : '${abbrs.resourcesResourceGroups}${environmentName}'
+  name: !empty(rg) ? rg : 'rg-${environmentName}'
   location: location
   tags: tags
 }
 
+// ✅ Static Web App (Frontend)
 module webapp 'br/public:avm/res/web/static-site:0.7.0' = {
   name: 'webapp'
   scope: resourceGroup
   params: {
     name: webappName
     location: webappLocation
-    tags: union(tags, { 'azd-service-name': webappName })
+    tags: union(tags, {
+      'azd-service-name': 'webapp'  // match your azure.yaml service name
+    })
     sku: 'Standard'
   }
 }
 
+// ✅ App Service Plan
 module serverfarm 'br/public:avm/res/web/serverfarm:0.4.1' = {
   name: 'appserviceplan'
   scope: resourceGroup
@@ -69,17 +73,21 @@ module serverfarm 'br/public:avm/res/web/serverfarm:0.4.1' = {
   }
 }
 
+// ✅ Web API (Backend)
 module webapi 'br/public:avm/res/web/site:0.15.1' = {
-  name: 'webapi'
+  name: 'webapi'  // must match service name in azure.yaml
   scope: resourceGroup
   params: {
     kind: 'app'
-    name: webapiName
-    tags: union(tags, { 'azd-service-name': webapiName })
+    name: webapiName  // actual app name (can be different)
+    tags: union(tags, {
+      'azd-service-name': 'webapi'  // must match azure.yaml service name
+    })
     serverFarmResourceId: serverfarm.outputs.resourceId
   }
 }
 
+// ---------------------------------------------------------------------------
+// Outputs
 output WEBAPP_URL string = webapp.outputs.defaultHostname
 output WEBAPI_URL string = webapi.outputs.defaultHostname
-
